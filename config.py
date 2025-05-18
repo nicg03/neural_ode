@@ -4,7 +4,7 @@ File di configurazione contenente tutti i parametri costanti del progetto.
 
 # Parametri di training
 TRAINING_CONFIG = {
-    'num_epochs': 16000,
+    'num_epochs': 2000,
     'learning_rate': 1e-3,
     'scheduler_patience': 100,
     'scheduler_factor': 0.5,
@@ -58,11 +58,11 @@ EVAL_CONFIG = {
 # Percorsi dei file
 PATHS = {
     'dataset': 'data/lamb_oseen_dataset.pt',
-    'model': 'lamb_oseen_multivortex_model.pth',
-    'metrics': 'training_metrics.npz',
+    'model': 'models/lamb_oseen_multivortex_model.pth',
+    'metrics': 'metrics/training_metrics.npz',
     'plots': {
-        'training_loss': 'training_loss.png',
-        'velocity_fields': 'velocity_fields.png',
-        'trajectory': 'trajectory.png'
+        'training_loss': 'img/training_loss.png',
+        'velocity_fields': 'img/velocity_fields.png',
+        'trajectory': 'img/trajectory.png'
     }
 } 
