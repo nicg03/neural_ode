@@ -1,7 +1,11 @@
 import torch
-import torchdiffeq
 import numpy as np
-import matplotlib.pyplot as plt
+from config import TRAINING_CONFIG, MODEL_CONFIG, PATHS
+
+# Carica il dataset salvato
+data = torch.load(PATHS['dataset'])
+data_in = data['data_in']
+data_out = data['data_out']
 
 # Funzione esatta del Lamb-Oseen per un singolo vortice
 def lamb_oseen_velocity(x, y, gamma, t, nu, x0=0, y0=0):
@@ -36,9 +40,6 @@ u_x3, u_y3 = lamb_oseen_velocity(X, Y, gamma3, t, nu, x3, y3)
 u_x = u_x1 + u_x2 + u_x3
 u_y = u_y1 + u_y2 + u_y3
 
-data_in = torch.tensor(np.stack([X.flatten(), Y.flatten(), np.full(X.size, t)], axis=1), dtype=torch.float32)
-data_out = torch.tensor(np.stack([u_x.flatten(), u_y.flatten()], axis=1), dtype=torch.float32)
-
 # Neural ODE dynamics
 class LambOseenODE(torch.nn.Module):
     def __init__(self):
@@ -60,15 +61,20 @@ class LambOseenODE(torch.nn.Module):
 
 # Training loop
 ode_func = LambOseenODE()
-optimizer = torch.optim.Adam(ode_func.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(ode_func.parameters(), lr=TRAINING_CONFIG['learning_rate'])
 loss_fn = torch.nn.MSELoss()
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=100, factor=0.5)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, 
+    'min', 
+    patience=TRAINING_CONFIG['scheduler_patience'], 
+    factor=TRAINING_CONFIG['scheduler_factor']
+)
 
 # Liste per memorizzare le metriche
 train_losses = []
 learning_rates = []
 
-for epoch in range(16000):
+for epoch in range(TRAINING_CONFIG['num_epochs']):
     pred = ode_func(0, data_in)
     loss = loss_fn(pred, data_out)
     optimizer.zero_grad()
@@ -80,11 +86,11 @@ for epoch in range(16000):
     train_losses.append(loss.item())
     learning_rates.append(optimizer.param_groups[0]['lr'])
     
-    if epoch % 100 == 0:
+    if epoch % TRAINING_CONFIG['print_every'] == 0:
         print(f"Epoch {epoch}: Loss = {loss.item():.6f}, LR = {optimizer.param_groups[0]['lr']:.6f}")
 
 # Salva le metriche
-np.savez('training_metrics.npz', 
+np.savez(PATHS['metrics'], 
          train_losses=np.array(train_losses),
          learning_rates=np.array(learning_rates))
 
@@ -94,60 +100,6 @@ torch.save({
     'optimizer_state_dict': optimizer.state_dict(),
     'scheduler_state_dict': scheduler.state_dict(),
     'final_loss': loss.item()
-}, 'lamb_oseen_multivortex_model.pth')
+}, PATHS['model'])
 
 print("Modello e metriche salvati")
-
-# Visualizzazione della loss
-plt.figure(figsize=(10, 5))
-plt.plot(train_losses, label='Training Loss')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.title('Curva di apprendimento')
-plt.yscale('log')
-plt.grid(True)
-plt.legend()
-plt.savefig('training_loss.png')
-plt.close()
-
-# Uso della rete in Neural ODE
-x0 = torch.tensor([[0.0, 0.0]], dtype=torch.float32)  # Punto iniziale al centro
-t_eval = torch.linspace(0, 2, 100)
-
-def augmented_ode_func(t, xy):
-    t_tensor = torch.full((xy.shape[0], 1), t.item(), dtype=xy.dtype, device=xy.device)
-    xyt = torch.cat([xy, t_tensor], dim=1)
-    return ode_func(t, xyt)
-
-trajectory = torchdiffeq.odeint(augmented_ode_func, x0, t_eval)
-trajectory_np = trajectory.detach().numpy()
-
-# Calcola il campo di velocità predetto dalla rete neurale
-grid_points = torch.tensor(np.stack([X.flatten(), Y.flatten(), np.full(X.size, t)], axis=1), dtype=torch.float32)
-predicted_velocities = ode_func(0, grid_points).detach().numpy()
-predicted_u_x = predicted_velocities[:, 0].reshape(X.shape)
-predicted_u_y = predicted_velocities[:, 1].reshape(X.shape)
-
-# Visualizzazione
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-
-# Plot del campo di velocità predetto
-ax1.quiver(X, Y, predicted_u_x, predicted_u_y, scale=50)
-ax1.set_title('Campo di velocità predetto')
-ax1.set_xlabel('x')
-ax1.set_ylabel('y')
-ax1.grid(True)
-
-# Plot del campo di velocità reale
-ax2.quiver(X, Y, u_x, u_y, scale=50)
-ax2.set_title('Campo di velocità reale (3 vortici Lamb-Oseen)')
-ax2.set_xlabel('x')
-ax2.set_ylabel('y')
-ax2.grid(True)
-
-plt.tight_layout()
-plt.show()
-
-# Calcola e mostra l'errore medio
-mse = np.mean((predicted_u_x - u_x)**2 + (predicted_u_y - u_y)**2)
-print(f"Errore quadratico medio: {mse:.6f}")

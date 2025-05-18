@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import os
+from config import DATASET_CONFIG, VORTEX_CONFIG, PATHS
 
 def lamb_oseen_velocity(x, y, gamma, t, nu, x0=0, y0=0):
     """
@@ -23,15 +25,9 @@ def lamb_oseen_velocity(x, y, gamma, t, nu, x0=0, y0=0):
     u_y = x * factor
     return u_x, u_y
 
-def create_multi_vortex_dataset(grid_resolution=200, domain_size=2.0, t=1.0, nu=0.01):
+def create_multi_vortex_dataset():
     """
     Crea un dataset sintetico con tre vortici Lamb-Oseen.
-    
-    Args:
-        grid_resolution: Risoluzione della griglia
-        domain_size: Dimensione del dominio [-domain_size, domain_size]
-        t: Tempo di simulazione
-        nu: Viscosità cinematica
     
     Returns:
         data_in: Tensor di input (x, y, t)
@@ -39,20 +35,23 @@ def create_multi_vortex_dataset(grid_resolution=200, domain_size=2.0, t=1.0, nu=
         X, Y: Griglie per la visualizzazione
         u_x, u_y: Campi di velocità per la visualizzazione
     """
-    # Parametri dei vortici
-    gamma1, gamma2, gamma3 = 1.0, -0.8, 0.6
-    x1, y1 = -0.5, 0.0
-    x2, y2 = 0.5, 0.5
-    x3, y3 = 0.0, -0.5
+    # Estrai i parametri dalla configurazione
+    grid_resolution = DATASET_CONFIG['grid_resolution']
+    domain_size = DATASET_CONFIG['domain_size']
+    t = DATASET_CONFIG['time']
+    nu = DATASET_CONFIG['viscosity']
 
     # Creazione della griglia
     grid = np.linspace(-domain_size, domain_size, grid_resolution)
     X, Y = np.meshgrid(grid, grid)
 
-    # Calcolo dei campi di velocità
-    u_x1, u_y1 = lamb_oseen_velocity(X, Y, gamma1, t, nu, x1, y1)
-    u_x2, u_y2 = lamb_oseen_velocity(X, Y, gamma2, t, nu, x2, y2)
-    u_x3, u_y3 = lamb_oseen_velocity(X, Y, gamma3, t, nu, x3, y3)
+    # Calcolo dei campi di velocità per ogni vortice
+    u_x1, u_y1 = lamb_oseen_velocity(X, Y, VORTEX_CONFIG['vortex1']['gamma'], t, nu,
+                                   VORTEX_CONFIG['vortex1']['x'], VORTEX_CONFIG['vortex1']['y'])
+    u_x2, u_y2 = lamb_oseen_velocity(X, Y, VORTEX_CONFIG['vortex2']['gamma'], t, nu,
+                                   VORTEX_CONFIG['vortex2']['x'], VORTEX_CONFIG['vortex2']['y'])
+    u_x3, u_y3 = lamb_oseen_velocity(X, Y, VORTEX_CONFIG['vortex3']['gamma'], t, nu,
+                                   VORTEX_CONFIG['vortex3']['x'], VORTEX_CONFIG['vortex3']['y'])
 
     # Somma dei campi di velocità
     u_x = u_x1 + u_x2 + u_x3
@@ -70,8 +69,32 @@ def create_multi_vortex_dataset(grid_resolution=200, domain_size=2.0, t=1.0, nu=
 
     return data_in, data_out, X, Y, u_x, u_y
 
+def save_dataset(data_in, data_out, X, Y, u_x, u_y):
+    """
+    Salva il dataset e i dati per la visualizzazione.
+    
+    Args:
+        data_in: Tensor di input (x, y, t)
+        data_out: Tensor di output (u_x, u_y)
+        X, Y: Griglie per la visualizzazione
+        u_x, u_y: Campi di velocità per la visualizzazione
+    """
+    # Crea la directory se non esiste
+    os.makedirs(os.path.dirname(PATHS['dataset']), exist_ok=True)
+    
+    # Salva i tensori per il training
+    torch.save({
+        'data_in': data_in,
+        'data_out': data_out
+    }, PATHS['dataset'])
+    
+    print(f"Dataset salvato in {PATHS['dataset']}")
+
 if __name__ == "__main__":
     # Esempio di utilizzo
     data_in, data_out, X, Y, u_x, u_y = create_multi_vortex_dataset()
     print(f"Shape del dataset di input: {data_in.shape}")
-    print(f"Shape del dataset di output: {data_out.shape}") 
+    print(f"Shape del dataset di output: {data_out.shape}")
+    
+    # Salva il dataset
+    save_dataset(data_in, data_out, X, Y, u_x, u_y) 
