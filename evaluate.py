@@ -32,16 +32,29 @@ def evaluate_model(model, data_path, metrics_path, model_path, plot_paths):
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()  # Imposta il modello in modalità evaluation
 
-    # Visualizzazione della loss
-    plt.figure(figsize=(10, 5))
-    plt.plot(train_losses, label='Training Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Curva di apprendimento')
-    plt.yscale('log')
-    plt.grid(True)
-    plt.legend()
+    # Visualizzazione delle loss e learning rates
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+    
+    # Plot training losses
+    ax1.plot(train_losses, label='Training Loss')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Loss')
+    ax1.set_title('Curva di apprendimento')
+    ax1.set_yscale('log')
+    ax1.grid(True)
+    ax1.legend()
+
+    # Plot learning rates
+    ax2.plot(learning_rates, label='Learning Rate')
+    ax2.set_xlabel('Epoch')
+    ax2.set_ylabel('Learning Rate')
+    ax2.set_title('Learning Rate Schedule')
+    ax2.grid(True)
+    ax2.legend()
+
+    plt.tight_layout()
     plt.savefig(plot_paths['training_loss'])
+    plt.show()
     plt.close()
 
     # Uso della rete in Neural ODE
@@ -104,6 +117,7 @@ def evaluate_model(model, data_path, metrics_path, model_path, plot_paths):
 
     plt.tight_layout()
     plt.savefig(plot_paths['velocity_fields'])
+    plt.show()
     plt.close()
 
     # Calcola e mostra l'errore medio
@@ -116,31 +130,53 @@ def evaluate_model(model, data_path, metrics_path, model_path, plot_paths):
     mse = np.mean((predicted_u_x - u_x)**2 + (predicted_u_y - u_y)**2)
     print(f"Errore quadratico medio: {mse:.6f}")
 
-    # Visualizzazione della traiettoria
-    plt.figure(figsize=(8, 8))
-    plt.plot(trajectory_np[:, 0, 0], trajectory_np[:, 0, 1], 'b-', label='Traiettoria')
-    plt.plot(trajectory_np[0, 0, 0], trajectory_np[0, 0, 1], 'go', label='Punto iniziale')
-    plt.plot(trajectory_np[-1, 0, 0], trajectory_np[-1, 0, 1], 'ro', label='Punto finale')
-    plt.title('Traiettoria del punto nel campo di velocità')
+    # Visualizzazione della traiettoria con campo vettoriale
+    plt.figure(figsize=(10, 10))
+    
+    # Plot del campo vettoriale di sfondo
+    skip = 15  # Densità più bassa per il campo vettoriale di sfondo
+    plt.quiver(X[::skip, ::skip], Y[::skip, ::skip], 
+               u_x[::skip, ::skip], u_y[::skip, ::skip], 
+               scale=50, color='gray', alpha=0.3, label='Campo di velocità')
+    
+    # Plot della traiettoria
+    plt.plot(trajectory_np[:, 0, 0], trajectory_np[:, 0, 1], 'b-', 
+             linewidth=2, label='Traiettoria')
+    plt.plot(trajectory_np[0, 0, 0], trajectory_np[0, 0, 1], 'go', 
+             markersize=10, label='Punto iniziale')
+    plt.plot(trajectory_np[-1, 0, 0], trajectory_np[-1, 0, 1], 'ro', 
+             markersize=10, label='Punto finale')
+    
+    plt.title('Traiettoria della particella nel campo di velocità')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.grid(True)
     plt.legend()
     plt.axis('equal')
     plt.savefig(plot_paths['trajectory'])
+    plt.show()
     plt.close()
 
     return mse
 
 if __name__ == "__main__":
-    # Inizializza il modello
-    model = AugmentedLambOseenODE()
+    # Scegli il modello da valutare
+    model_type = "standard"  # oppure "augmented"
+    
+    if model_type == "standard":
+        model = LambOseenODE()
+        metrics_path = PATHS['metrics']
+        model_path = PATHS['model']
+    else:  # augmented
+        model = AugmentedLambOseenODE()
+        metrics_path = PATHS['metrics'].replace('.npz', '_anode.npz')
+        model_path = PATHS['model'].replace('.pth', '_anode.pth')
     
     # Esegui la valutazione
     evaluate_model(
         model=model,
         data_path=PATHS['dataset'],
-        metrics_path=PATHS['metrics'].replace('.npz', '_anode.npz'),
-        model_path=PATHS['model'].replace('.pth', '_anode.pth'),
+        metrics_path=metrics_path,
+        model_path=model_path,
         plot_paths=PATHS['plots']
     )
