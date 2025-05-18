@@ -49,17 +49,17 @@ def generate_dataset(grid_resolution=200):
 
 # ---------------------- ANODE Model -----------------------------
 class AugmentedLambOseenODE(nn.Module):
-    def __init__(self, augment_dim=8):
+    def __init__(self, augment_dim=6):
         super().__init__()
         self.augment_dim = augment_dim
         self.net = nn.Sequential(
-            nn.Linear(3 + augment_dim, 128),  # x, y, t, augmented dims
+            nn.Linear(3 + augment_dim, 64),  # x, y, t, augmented dims
             nn.Tanh(),
-            nn.Linear(128, 128),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(128, 128),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(128, 2 + augment_dim)  # dx/dt, dy/dt, da/dt
+            nn.Linear(64, 2 + augment_dim)  # dx/dt, dy/dt, da/dt
         )
 
     def forward(self, t, state):
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     model = AugmentedLambOseenODE(augment_dim=augment_dim)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=100, factor=0.5)
-    train_losses, learning_rates = train_anode(model, data_in, data_out, epochs=20000, lr=1e-3, optimizer=optimizer, scheduler=scheduler)
+    train_losses, learning_rates = train_anode(model, data_in, data_out, epochs=16000, lr=1e-3, optimizer=optimizer, scheduler=scheduler)
 
     # Salva le metriche
     np.savez('anode_training_metrics.npz', 

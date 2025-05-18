@@ -68,7 +68,7 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patienc
 train_losses = []
 learning_rates = []
 
-for epoch in range(20000):
+for epoch in range(16000):
     pred = ode_func(0, data_in)
     loss = loss_fn(pred, data_out)
     optimizer.zero_grad()
